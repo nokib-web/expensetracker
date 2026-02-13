@@ -1,0 +1,81 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String         @id @default(cuid())
+  email         String         @unique
+  name          String
+  password      String
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  transactions  Transaction[]
+  budgets       Budget[]
+  zakatRecords  ZakatRecord[]
+}
+
+model Transaction {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type        String
+  category    String
+  amount      Float
+  description String?
+  date        DateTime @default(now())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([userId])
+  @@index([type])
+  @@index([category])
+  @@index([date])
+}
+
+model Category {
+  id    String @id @default(cuid())
+  name  String @unique
+  type  String
+  icon  String?
+  color String?
+}
+
+model Budget {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category  String
+  amount    Float
+  period    String
+  startDate DateTime
+  endDate   DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([userId])
+  @@index([category])
+}
+
+model ZakatRecord {
+  id             String    @id @default(cuid())
+  userId         String
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  year           Int
+  totalWealth    Float
+  netWealth      Float
+  zakatDue       Float
+  zakatPaid      Float     @default(0)
+  nisabThreshold Float
+  calculatedAt   DateTime  @default(now())
+  paidAt         DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([userId])
+  @@index([year])
+}
