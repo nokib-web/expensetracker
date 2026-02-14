@@ -18,6 +18,8 @@ import { LoadingSpinner } from '@/components/ui/loading-spinner';
 import { useQuery } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 
+import { CategorySelect } from '@/components/forms/CategorySelect';
+
 const transactionSchema = z.object({
     type: z.enum(['INCOME', 'EXPENSE']),
     amount: z.coerce.number().positive('Amount must be positive'),
@@ -37,12 +39,6 @@ interface Transaction {
     transactionDate: string;
 }
 
-interface Category {
-    id: string;
-    name: string;
-    type: 'INCOME' | 'EXPENSE';
-}
-
 interface TransactionFormProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
@@ -56,7 +52,7 @@ export function TransactionForm({
     transaction,
     onSuccess,
 }: TransactionFormProps) {
-    const [isLoading, setIsLoading] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
     const {
         register,
@@ -74,17 +70,7 @@ export function TransactionForm({
     });
 
     const selectedType = watch('type');
-
-    // Fetch categories
-    const { data: categories = [], isLoading: isLoadingCategories } = useQuery<Category[]>({
-        queryKey: ['categories', selectedType],
-        queryFn: async () => {
-            const response = await fetch(`/api/categories?type=${selectedType}`);
-            if (!response.ok) throw new Error('Failed to fetch categories');
-            return response.json();
-        },
-        enabled: open,
-    });
+    const categoryId = watch('categoryId');
 
     useEffect(() => {
         if (transaction) {
@@ -95,7 +81,7 @@ export function TransactionForm({
                 description: transaction.description || '',
                 transactionDate: new Date(transaction.transactionDate).toISOString().split('T')[0],
             });
-        } else {
+        } else if (open) {
             reset({
                 type: 'EXPENSE',
                 amount: undefined,
@@ -107,7 +93,7 @@ export function TransactionForm({
     }, [transaction, open, reset]);
 
     const onSubmit = async (data: TransactionFormValues) => {
-        setIsLoading(true);
+        setIsSubmitting(true);
         try {
             const url = transaction ? `/api/transactions/${transaction.id}` : '/api/transactions';
             const method = transaction ? 'PUT' : 'POST';
@@ -131,7 +117,7 @@ export function TransactionForm({
         } catch (error: any) {
             toast.error(error.message);
         } finally {
-            setIsLoading(false);
+            setIsSubmitting(false);
         }
     };
 
@@ -147,7 +133,10 @@ export function TransactionForm({
                             type="button"
                             variant={selectedType === 'EXPENSE' ? 'danger' : 'outline'}
                             className="w-full"
-                            onClick={() => setValue('type', 'EXPENSE')}
+                            onClick={() => {
+                                setValue('type', 'EXPENSE');
+                                setValue('categoryId', '');
+                            }}
                         >
                             Expense
                         </Button>
@@ -155,7 +144,10 @@ export function TransactionForm({
                             type="button"
                             variant={selectedType === 'INCOME' ? 'success' : 'outline'}
                             className="w-full"
-                            onClick={() => setValue('type', 'INCOME')}
+                            onClick={() => {
+                                setValue('type', 'INCOME');
+                                setValue('categoryId', '');
+                            }}
                         >
                             Income
                         </Button>
@@ -170,19 +162,14 @@ export function TransactionForm({
                         error={errors.amount?.message}
                     />
 
-                    <Select
+                    <CategorySelect
                         label="Category"
-                        {...register('categoryId')}
+                        type={selectedType}
+                        value={categoryId}
+                        onChange={(val) => setValue('categoryId', val)}
                         error={errors.categoryId?.message}
-                        disabled={isLoadingCategories}
-                    >
-                        <option value="">Select a category</option>
-                        {categories.map((category) => (
-                            <option key={category.id} value={category.id}>
-                                {category.name}
-                            </option>
-                        ))}
-                    </Select>
+                    />
+
 
                     <div className="space-y-2">
                         <label className="text-sm font-medium">Date</label>

@@ -52,6 +52,7 @@ model Category {
   userId    String
   name      String
   type      CategoryType
+  isSystem  Boolean      @default(false)
   createdAt DateTime     @default(now())
   
   // Relations
@@ -60,6 +61,7 @@ model Category {
   
   @@index([userId])
 }
+
 
 model Transaction {
   id              String          @id @default(uuid())

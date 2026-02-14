@@ -80,37 +80,52 @@ export async function POST(request: NextRequest) {
             });
 
             // Create default income categories
-            const incomeCategories = ['Salary', 'Business', 'Investment', 'Gift', 'Other'];
-            for (const categoryName of incomeCategories) {
+            const incomeCategories = [
+                { name: 'Salary', isSystem: false },
+                { name: 'Business Income', isSystem: false },
+                { name: 'Investment Returns', isSystem: false },
+                { name: 'Freelance', isSystem: false },
+                { name: 'Gifts Received', isSystem: false },
+                { name: 'Other Income', isSystem: false },
+                { name: 'Uncategorized', isSystem: true },
+            ];
+            for (const cat of incomeCategories) {
                 await tx.category.create({
                     data: {
                         userId: newUser.id,
-                        name: categoryName,
+                        name: cat.name,
                         type: 'INCOME',
+                        isSystem: cat.isSystem,
                     },
                 });
             }
 
             // Create default expense categories
             const expenseCategories = [
-                'Food',
-                'Transport',
-                'Bills',
-                'Shopping',
-                'Healthcare',
-                'Education',
-                'Entertainment',
-                'Other',
+                { name: 'Food & Dining', isSystem: false },
+                { name: 'Transportation', isSystem: false },
+                { name: 'Housing & Utilities', isSystem: false },
+                { name: 'Shopping', isSystem: false },
+                { name: 'Healthcare', isSystem: false },
+                { name: 'Education', isSystem: false },
+                { name: 'Entertainment', isSystem: false },
+                { name: 'Subscriptions', isSystem: false },
+                { name: 'Charity', isSystem: false },
+                { name: 'Personal Care', isSystem: false },
+                { name: 'Other Expenses', isSystem: false },
+                { name: 'Uncategorized', isSystem: true },
             ];
-            for (const categoryName of expenseCategories) {
+            for (const cat of expenseCategories) {
                 await tx.category.create({
                     data: {
                         userId: newUser.id,
-                        name: categoryName,
+                        name: cat.name,
                         type: 'EXPENSE',
+                        isSystem: cat.isSystem,
                     },
                 });
             }
+
 
             return newUser;
         });
