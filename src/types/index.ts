@@ -63,3 +63,24 @@ export interface ChartData {
     value: number;
     color?: string;
 }
+
+// Authentication Types
+export interface Session {
+    user: {
+        id: string;
+        name: string;
+        email: string;
+    };
+    expires: string;
+}
+
+export interface LoginCredentials {
+    email: string;
+    password: string;
+}
+
+export interface RegisterData {
+    name: string;
+    email: string;
+    password: string;
+}

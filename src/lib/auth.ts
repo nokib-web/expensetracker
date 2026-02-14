@@ -12,6 +12,7 @@ export const authOptions: NextAuthOptions = {
         signOut: '/login',
         error: '/login',
     },
+    secret: process.env.NEXTAUTH_SECRET,
     providers: [
         CredentialsProvider({
             name: 'credentials',
@@ -30,11 +31,11 @@ export const authOptions: NextAuthOptions = {
                     },
                 });
 
-                if (!user || !user.password) {
+                if (!user || !user.passwordHash) {
                     throw new Error('Invalid credentials');
                 }
 
-                const isPasswordValid = await compare(credentials.password, user.password);
+                const isPasswordValid = await compare(credentials.password, user.passwordHash);
 
                 if (!isPasswordValid) {
                     throw new Error('Invalid credentials');
@@ -67,3 +68,4 @@ export const authOptions: NextAuthOptions = {
         },
     },
 };
+
