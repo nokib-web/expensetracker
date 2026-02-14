@@ -1,8 +1,8 @@
 import * as React from 'react';
 
 export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-    variant?: 'primary' | 'secondary' | 'success' | 'danger' | 'warning' | 'outline';
-    size?: 'sm' | 'md' | 'lg';
+    variant?: 'primary' | 'secondary' | 'success' | 'danger' | 'warning' | 'outline' | 'ghost';
+    size?: 'sm' | 'md' | 'lg' | 'icon';
 }
 
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
@@ -17,14 +17,17 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
             danger: 'bg-[--color-danger] text-white hover:bg-[--color-danger-dark]',
             warning: 'bg-[--color-warning] text-white hover:bg-[--color-warning-dark]',
             outline:
-                'border-2 border-[--color-primary] text-[--color-primary] hover:bg-[--color-primary] hover:text-white',
+                'border border-gray-300 bg-transparent hover:bg-gray-100 text-gray-700',
+            ghost: 'bg-transparent hover:bg-gray-100 text-gray-700',
         };
 
         const sizeStyles = {
             sm: 'h-9 px-3 text-sm',
             md: 'h-10 px-4 py-2',
             lg: 'h-11 px-8 text-lg',
+            icon: 'h-10 w-10',
         };
+
 
         return (
             <button
