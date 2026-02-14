@@ -1,88 +1,135 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Wallet, TrendingUp, TrendingDown, DollarSign } from 'lucide-react';
+'use client';
+
+import { useQuery } from '@tanstack/react-query';
+import { useRouter } from 'next/navigation';
+import toast from 'react-hot-toast';
+import { TrendingUp, TrendingDown, Wallet, Coins } from 'lucide-react';
+import { StatsCard } from '@/components/dashboard/StatsCard';
+import { TransactionList } from '@/components/dashboard/TransactionList';
+import { ExpenseChart } from '@/components/dashboard/ExpenseChart';
+import { QuickActions } from '@/components/dashboard/QuickActions';
+
+interface DashboardData {
+    totalIncome: number;
+    totalExpenses: number;
+    currentBalance: number;
+    thisMonthIncome: number;
+    thisMonthExpenses: number;
+    incomeChange: number;
+    expenseChange: number;
+    topSpendingCategories: Array<{
+        categoryId: string;
+        categoryName: string;
+        amount: number;
+    }>;
+    recentTransactions: Array<{
+        id: string;
+        type: 'INCOME' | 'EXPENSE';
+        amount: number;
+        categoryName: string;
+        description: string | null;
+        transactionDate: Date | string;
+    }>;
+    zakatEligible: boolean;
+    zakatDue: number;
+}
 
 export default function DashboardPage() {
-    // TODO: Fetch actual data from API
-    const stats = {
-        totalIncome: 5000,
-        totalExpenses: 3200,
-        balance: 1800,
-        zakatDue: 125,
+    const router = useRouter();
+
+    const { data, isLoading, error } = useQuery<DashboardData>({
+        queryKey: ['dashboard-summary'],
+        queryFn: async () => {
+            const response = await fetch('/api/dashboard/summary');
+            if (!response.ok) {
+                throw new Error('Failed to fetch dashboard data');
+            }
+            return response.json();
+        },
+    });
+
+    if (error) {
+        toast.error('Failed to load dashboard data');
+    }
+
+    const handleAddIncome = () => {
+        router.push('/transactions?type=income');
+    };
+
+    const handleAddExpense = () => {
+        router.push('/transactions?type=expense');
+    };
+
+    const handlePayZakat = () => {
+        router.push('/zakat');
     };
 
     return (
-        <div className="min-h-screen bg-gray-50 p-8">
-            <div className="max-w-7xl mx-auto">
-                <h1 className="text-3xl font-bold text-gray-900 mb-8">Dashboard</h1>
-
-                {/* Stats Grid */}
-                <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-                    <Card>
-                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium">Total Income</CardTitle>
-                            <TrendingUp className="h-4 w-4 text-[--color-success]" />
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-2xl font-bold text-[--color-success]">
-                                ${stats.totalIncome.toLocaleString()}
-                            </div>
-                            <p className="text-xs text-gray-500">All time</p>
-                        </CardContent>
-                    </Card>
-
-                    <Card>
-                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium">Total Expenses</CardTitle>
-                            <TrendingDown className="h-4 w-4 text-[--color-danger]" />
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-2xl font-bold text-[--color-danger]">
-                                ${stats.totalExpenses.toLocaleString()}
-                            </div>
-                            <p className="text-xs text-gray-500">All time</p>
-                        </CardContent>
-                    </Card>
-
-                    <Card>
-                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium">Current Balance</CardTitle>
-                            <Wallet className="h-4 w-4 text-[--color-primary]" />
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-2xl font-bold text-[--color-primary]">
-                                ${stats.balance.toLocaleString()}
-                            </div>
-                            <p className="text-xs text-gray-500">Net worth</p>
-                        </CardContent>
-                    </Card>
-
-                    <Card>
-                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium">Zakat Due</CardTitle>
-                            <DollarSign className="h-4 w-4 text-[--color-warning]" />
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-2xl font-bold text-[--color-warning]">
-                                ${stats.zakatDue.toLocaleString()}
-                            </div>
-                            <p className="text-xs text-gray-500">2.5% of eligible wealth</p>
-                        </CardContent>
-                    </Card>
-                </div>
-
-                {/* Recent Transactions */}
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Recent Transactions</CardTitle>
-                        <CardDescription>Your latest financial activities</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        <p className="text-gray-500 text-center py-8">
-                            No transactions yet. Start by adding your first transaction!
-                        </p>
-                    </CardContent>
-                </Card>
+        <div className="space-y-8">
+            <div>
+                <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
+                <p className="text-gray-600 mt-1">
+                    Welcome back! Here's your financial overview.
+                </p>
             </div>
+
+            {/* Stats Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <StatsCard
+                    title="Total Income"
+                    value={data?.totalIncome || 0}
+                    icon={TrendingUp}
+                    iconColor="bg-green-600"
+                    change={data?.incomeChange}
+                    isLoading={isLoading}
+                />
+                <StatsCard
+                    title="Total Expenses"
+                    value={data?.totalExpenses || 0}
+                    icon={TrendingDown}
+                    iconColor="bg-red-600"
+                    change={data?.expenseChange}
+                    isLoading={isLoading}
+                />
+                <StatsCard
+                    title="Current Balance"
+                    value={data?.currentBalance || 0}
+                    icon={Wallet}
+                    iconColor="bg-blue-600"
+                    isLoading={isLoading}
+                />
+                <StatsCard
+                    title="Zakat Due"
+                    value={data?.zakatDue || 0}
+                    icon={Coins}
+                    iconColor="bg-purple-600"
+                    isLoading={isLoading}
+                />
+            </div>
+
+            {/* Charts and Quick Actions */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div className="lg:col-span-2">
+                    <ExpenseChart
+                        data={data?.topSpendingCategories || []}
+                        isLoading={isLoading}
+                    />
+                </div>
+                <div>
+                    <QuickActions
+                        zakatDue={data?.zakatDue}
+                        onAddIncome={handleAddIncome}
+                        onAddExpense={handleAddExpense}
+                        onPayZakat={handlePayZakat}
+                    />
+                </div>
+            </div>
+
+            {/* Recent Transactions */}
+            <TransactionList
+                transactions={data?.recentTransactions || []}
+                isLoading={isLoading}
+            />
         </div>
     );
 }
