@@ -7,75 +7,115 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model User {
-  id            String         @id @default(cuid())
-  email         String         @unique
-  name          String
-  password      String
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-  transactions  Transaction[]
-  budgets       Budget[]
-  zakatRecords  ZakatRecord[]
+// Enums
+enum TransactionType {
+  INCOME
+  EXPENSE
 }
 
-model Transaction {
-  id          String   @id @default(cuid())
-  userId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  type        String
-  category    String
-  amount      Float
-  description String?
-  date        DateTime @default(now())
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+enum CategoryType {
+  INCOME
+  EXPENSE
+}
 
-  @@index([userId])
-  @@index([type])
-  @@index([category])
-  @@index([date])
+enum CalculationMethod {
+  MANUAL
+  AUTOMATIC
+}
+
+enum AssetSource {
+  CASH
+  SAVINGS
+  GOLD
+  INVESTMENT
+}
+
+// Models
+model User {
+  id             String          @id @default(uuid())
+  name           String
+  email          String          @unique
+  passwordHash   String
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  
+  // Relations
+  categories     Category[]
+  transactions   Transaction[]
+  zakatSettings  ZakatSettings?
+  zakatAssets    ZakatAsset[]
+  zakatPayments  ZakatPayment[]
 }
 
 model Category {
-  id    String @id @default(cuid())
-  name  String @unique
-  type  String
-  icon  String?
-  color String?
-}
-
-model Budget {
-  id        String    @id @default(cuid())
+  id        String       @id @default(uuid())
   userId    String
-  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  category  String
-  amount    Float
-  period    String
-  startDate DateTime
-  endDate   DateTime?
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-
+  name      String
+  type      CategoryType
+  createdAt DateTime     @default(now())
+  
+  // Relations
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions Transaction[]
+  
   @@index([userId])
-  @@index([category])
 }
 
-model ZakatRecord {
-  id             String    @id @default(cuid())
-  userId         String
-  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  year           Int
-  totalWealth    Float
-  netWealth      Float
-  zakatDue       Float
-  zakatPaid      Float     @default(0)
-  nisabThreshold Float
-  calculatedAt   DateTime  @default(now())
-  paidAt         DateTime?
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+model Transaction {
+  id              String          @id @default(uuid())
+  userId          String
+  type            TransactionType
+  amount          Decimal         @db.Decimal(12, 2)
+  categoryId      String
+  description     String?
+  transactionDate DateTime
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  
+  // Relations
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category Category @relation(fields: [categoryId], references: [id])
+  
+  @@index([userId, transactionDate])
+}
 
-  @@index([userId])
-  @@index([year])
+model ZakatSettings {
+  id                String            @id @default(uuid())
+  userId            String            @unique
+  nisabAmount       Decimal           @db.Decimal(12, 2)
+  zakatRate         Decimal           @db.Decimal(4, 2) @default(2.5)
+  calculationMethod CalculationMethod @default(AUTOMATIC)
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model ZakatAsset {
+  id        String      @id @default(uuid())
+  userId    String
+  source    AssetSource
+  amount    Decimal     @db.Decimal(12, 2)
+  date      DateTime    @default(now())
+  createdAt DateTime    @default(now())
+  
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([userId, date])
+}
+
+model ZakatPayment {
+  id          String   @id @default(uuid())
+  userId      String
+  amountPaid  Decimal  @db.Decimal(12, 2)
+  paymentDate DateTime
+  notes       String?
+  createdAt   DateTime @default(now())
+  
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([userId, paymentDate])
 }
