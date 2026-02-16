@@ -4,11 +4,12 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useSession, signOut } from 'next-auth/react';
-import { Menu, X, LogOut, User, Settings } from 'lucide-react';
+import { Menu, X, LogOut, User, Settings, Bell } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 
 import { SearchBar } from '@/components/search/SearchBar';
+import { NotificationBell } from '@/components/layout/NotificationBell';
 
 const navigation = [
     { name: 'Dashboard', href: '/dashboard' },
@@ -74,7 +75,9 @@ export function Navbar() {
                     </div>
 
                     {/* User Menu */}
-                    <div className="hidden sm:ml-6 sm:flex sm:items-center">
+                    <div className="hidden sm:ml-6 sm:flex sm:items-center gap-4">
+                        <NotificationBell />
+
                         <div className="relative">
                             <button
                                 onClick={() => setUserMenuOpen(!userMenuOpen)}
@@ -110,6 +113,14 @@ export function Navbar() {
                                             >
                                                 <User className="h-4 w-4" />
                                                 Profile
+                                            </Link>
+                                            <Link
+                                                href="/notifications"
+                                                className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                                                onClick={() => setUserMenuOpen(false)}
+                                            >
+                                                <Bell className="h-4 w-4" />
+                                                Notifications
                                             </Link>
                                             <Link
                                                 href="/settings"

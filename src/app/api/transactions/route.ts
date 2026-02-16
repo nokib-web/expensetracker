@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
+import { createNotification } from '@/lib/notifications';
 
 const transactionSchema = z.object({
     type: z.enum(['INCOME', 'EXPENSE']),
@@ -141,6 +142,20 @@ export async function POST(request: NextRequest) {
                 category: true,
             },
         });
+
+        // Trigger Notification if large transaction
+        const prefs = await prisma.notificationPreference.findUnique({ where: { userId: session.user.id } });
+        const limit = prefs?.largeTransactionLimit ? Number(prefs.largeTransactionLimit) : 1000;
+
+        if (Number(transaction.amount) >= limit) {
+            await createNotification(
+                session.user.id,
+                'LARGE_TRANSACTION',
+                'Large Transaction Alert',
+                `A ${transaction.type.toLowerCase()} of $${Number(transaction.amount).toFixed(2)} was recorded: ${transaction.description || 'No description'}.`,
+                `/transactions?id=${transaction.id}`
+            );
+        }
 
         return NextResponse.json(transaction, { status: 201 });
     } catch (error) {

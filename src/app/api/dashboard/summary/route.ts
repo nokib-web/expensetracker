@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
-import { startOfMonth, endOfMonth, subMonths, startOfDay, endOfDay } from 'date-fns';
+import { startOfMonth, endOfMonth, subMonths, isFirstDayOfMonth, format } from 'date-fns';
+import { createNotification } from '@/lib/notifications';
 
 export async function GET(request: NextRequest) {
     try {
@@ -14,6 +15,32 @@ export async function GET(request: NextRequest) {
 
         const userId = session.user.id;
         const now = new Date();
+
+        // Monthly Summary Trigger
+        if (isFirstDayOfMonth(now)) {
+            const lastMonth = subMonths(now, 1);
+            const monthName = format(lastMonth, 'MMMM yyyy');
+
+            const existingNotification = await prisma.notification.findFirst({
+                where: {
+                    userId,
+                    type: 'MONTHLY_SUMMARY',
+                    createdAt: {
+                        gte: startOfMonth(now)
+                    }
+                }
+            });
+
+            if (!existingNotification) {
+                await createNotification(
+                    userId,
+                    'MONTHLY_SUMMARY',
+                    '📊 Monthly Summary Ready',
+                    `Your financial summary for ${monthName} is now ready for review in the reports section.`,
+                    '/reports'
+                );
+            }
+        }
         const thisMonthStart = startOfMonth(now);
         const thisMonthEnd = endOfMonth(now);
         const lastMonthStart = startOfMonth(subMonths(now, 1));
