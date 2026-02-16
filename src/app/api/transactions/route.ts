@@ -23,9 +23,13 @@ export async function GET(request: NextRequest) {
         const page = parseInt(searchParams.get('page') || '1');
         const limit = parseInt(searchParams.get('limit') || '10');
         const type = searchParams.get('type') as 'INCOME' | 'EXPENSE' | null;
-        const categoryId = searchParams.get('categoryId');
-        const startDate = searchParams.get('startDate');
-        const endDate = searchParams.get('endDate');
+        const categoryId = searchParams.get('category');
+        const startDate = searchParams.get('start');
+        const endDate = searchParams.get('end');
+        const minAmount = searchParams.get('min');
+        const maxAmount = searchParams.get('max');
+        const sortBy = searchParams.get('sortBy') || 'transactionDate';
+        const sortOrder = searchParams.get('sortOrder') || 'desc';
         const search = searchParams.get('search');
 
         const skip = (page - 1) * limit;
@@ -52,6 +56,16 @@ export async function GET(request: NextRequest) {
             }
         }
 
+        if (minAmount || maxAmount) {
+            where.amount = {};
+            if (minAmount) {
+                where.amount.gte = parseFloat(minAmount);
+            }
+            if (maxAmount) {
+                where.amount.lte = parseFloat(maxAmount);
+            }
+        }
+
         if (search) {
             where.description = {
                 contains: search,
@@ -66,7 +80,7 @@ export async function GET(request: NextRequest) {
                     category: true,
                 },
                 orderBy: {
-                    transactionDate: 'desc',
+                    [sortBy]: sortOrder,
                 },
                 skip,
                 take: limit,

@@ -17,7 +17,7 @@ import { Badge } from '@/components/ui/badge';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { TransactionForm } from '@/components/forms/TransactionForm';
-import { Filters } from '@/components/transactions/Filters';
+import { AdvancedFilters } from '@/components/filters/AdvancedFilters';
 import { Pagination } from '@/components/ui/pagination';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import toast from 'react-hot-toast';
@@ -47,6 +47,7 @@ interface TransactionsResponse {
     };
 }
 
+
 export default function TransactionsPage() {
     const queryClient = useQueryClient();
     const searchParams = useSearchParams();
@@ -56,9 +57,13 @@ export default function TransactionsPage() {
     const page = parseInt(searchParams.get('page') || '1');
     const filters = {
         type: searchParams.get('type') || '',
-        categoryId: searchParams.get('categoryId') || '',
-        startDate: searchParams.get('startDate') || '',
-        endDate: searchParams.get('endDate') || '',
+        category: searchParams.get('category') || '',
+        start: searchParams.get('start') || '',
+        end: searchParams.get('end') || '',
+        min: searchParams.get('min') || '',
+        max: searchParams.get('max') || '',
+        sortBy: searchParams.get('sortBy') || 'transactionDate',
+        sortOrder: searchParams.get('sortOrder') || 'desc',
         search: searchParams.get('search') || '',
     };
 
@@ -80,28 +85,10 @@ export default function TransactionsPage() {
         },
     });
 
-    const updateQueryParams = (newParams: Record<string, string | number>) => {
-        const params = new URLSearchParams(searchParams.toString());
-        Object.entries(newParams).forEach(([key, value]) => {
-            if (value) {
-                params.set(key, value.toString());
-            } else {
-                params.delete(key);
-            }
-        });
-        router.push(`${pathname}?${params.toString()}`);
-    };
-
     const setPage = (newPage: number) => {
-        updateQueryParams({ page: newPage });
-    };
-
-    const handleFilterChange = (key: string, value: string) => {
-        updateQueryParams({ [key]: value, page: 1 });
-    };
-
-    const handleReset = () => {
-        router.push(pathname);
+        const params = new URLSearchParams(searchParams.toString());
+        params.set('page', newPage.toString());
+        router.push(`${pathname}?${params.toString()}`);
     };
 
     const deleteMutation = useMutation({
@@ -148,7 +135,7 @@ export default function TransactionsPage() {
                 </Button>
             </div>
 
-            <Filters filters={filters} onFilterChange={handleFilterChange} onReset={handleReset} />
+            <AdvancedFilters />
 
             <Card>
                 <CardContent className="p-0">

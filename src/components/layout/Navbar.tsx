@@ -8,6 +8,8 @@ import { Menu, X, LogOut, User, Settings } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 
+import { SearchBar } from '@/components/search/SearchBar';
+
 const navigation = [
     { name: 'Dashboard', href: '/dashboard' },
     { name: 'Transactions', href: '/transactions' },
@@ -64,6 +66,11 @@ export function Navbar() {
                                 );
                             })}
                         </div>
+                    </div>
+
+                    {/* Global Search */}
+                    <div className="hidden md:flex items-center flex-1 max-w-sm px-4">
+                        <SearchBar />
                     </div>
 
                     {/* User Menu */}
