@@ -22,8 +22,11 @@ import { CategorySelect } from '@/components/forms/CategorySelect';
 
 const transactionSchema = z.object({
     type: z.enum(['INCOME', 'EXPENSE']),
-    amount: z.coerce.number().positive('Amount must be positive'),
-    categoryId: z.string().uuid('Please select a category'),
+    amount: z.preprocess(
+        (val) => (typeof val === 'string' ? parseFloat(val) : val),
+        z.number().positive('Amount must be positive')
+    ),
+    categoryId: z.string().min(1, 'Please select a category'),
     description: z.string().optional(),
     transactionDate: z.string(),
 });
@@ -62,7 +65,8 @@ export function TransactionForm({
         reset,
         formState: { errors },
     } = useForm<TransactionFormValues>({
-        resolver: zodResolver(transactionSchema),
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        resolver: zodResolver(transactionSchema) as any,
         defaultValues: {
             type: 'EXPENSE',
             transactionDate: new Date().toISOString().split('T')[0],
@@ -197,12 +201,12 @@ export function TransactionForm({
                             type="button"
                             variant="outline"
                             onClick={() => onOpenChange(false)}
-                            disabled={isLoading}
+                            disabled={isSubmitting}
                         >
                             Cancel
                         </Button>
-                        <Button type="submit" disabled={isLoading} className="min-w-[100px]">
-                            {isLoading ? <LoadingSpinner size="sm" /> : transaction ? 'Update' : 'Add'}
+                        <Button type="submit" disabled={isSubmitting} className="min-w-[100px]">
+                            {isSubmitting ? <LoadingSpinner size="sm" /> : transaction ? 'Update' : 'Add'}
                         </Button>
                     </DialogFooter>
                 </form>

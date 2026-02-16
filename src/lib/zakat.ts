@@ -1,78 +1,173 @@
-/**
- * Zakat calculation utilities
- * Zakat is 2.5% of eligible wealth held for a full lunar year (Nisab threshold)
- */
+import { prisma } from "@/lib/prisma";
+import { Decimal } from "@prisma/client/runtime/library";
 
-export const ZAKAT_RATE = 0.025; // 2.5%
-export const NISAB_GOLD_GRAMS = 87.48; // Approximately 87.48 grams of gold
-export const NISAB_SILVER_GRAMS = 612.36; // Approximately 612.36 grams of silver
-
-export interface ZakatCalculationInput {
-    cash: number;
-    bankBalance: number;
-    investments: number;
-    gold: number;
-    silver: number;
-    businessAssets: number;
-    debtsOwed: number;
-    debtsPayable: number;
+export interface ZakatSummary {
+    totalAssets: Decimal;
+    netBalance: Decimal;
+    eligibleAmount: Decimal;
+    nisabAmount: Decimal;
+    meetsNisab: boolean;
+    zakatPayable: Decimal;
+    zakatPaid: Decimal;
+    zakatDue: Decimal;
+    zakatRate: Decimal;
 }
 
-export interface ZakatCalculationResult {
-    totalWealth: number;
-    netWealth: number;
-    zakatDue: number;
-    isEligible: boolean;
-    nisabThreshold: number;
+export async function calculateTotalAssets(userId: string): Promise<Decimal> {
+    const assets = await prisma.zakatAsset.aggregate({
+        where: { userId },
+        _sum: {
+            amount: true,
+        },
+    });
+
+    return assets._sum.amount || new Decimal(0);
 }
 
-/**
- * Calculate Zakat based on wealth and nisab threshold
- * @param input - Wealth components
- * @param nisabThreshold - Current nisab threshold in currency
- * @returns Zakat calculation result
- */
-export function calculateZakat(
-    input: ZakatCalculationInput,
-    nisabThreshold: number
-): ZakatCalculationResult {
-    const totalWealth =
-        input.cash +
-        input.bankBalance +
-        input.investments +
-        input.gold +
-        input.silver +
-        input.businessAssets +
-        input.debtsOwed;
+export async function calculateNetBalance(userId: string): Promise<Decimal> {
+    const result = await prisma.transaction.aggregate({
+        where: { userId },
+        _sum: {
+            amount: true,
+        },
+    });
 
-    const netWealth = totalWealth - input.debtsPayable;
+    // This is a bit tricky because we need to separate income and expense
+    // aggregate doesn't easily support conditional sums in one go for multiple types
+    // unless we use groupBy or multiple queries.
 
-    const isEligible = netWealth >= nisabThreshold;
-    const zakatDue = isEligible ? netWealth * ZAKAT_RATE : 0;
+    const income = await prisma.transaction.aggregate({
+        where: { userId, type: 'INCOME' },
+        _sum: { amount: true },
+    });
+
+    const expense = await prisma.transaction.aggregate({
+        where: { userId, type: 'EXPENSE' },
+        _sum: { amount: true },
+    });
+
+    const totalIncome = income._sum.amount || new Decimal(0);
+    const totalExpense = expense._sum.amount || new Decimal(0);
+
+    return totalIncome.minus(totalExpense);
+}
+
+export async function calculateZakatEligibleAmount(userId: string): Promise<Decimal> {
+    const totalAssets = await calculateTotalAssets(userId);
+    const netBalance = await calculateNetBalance(userId);
+
+    // Zakat-eligible amount = assets + positive balance
+    const balanceToAdd = netBalance.greaterThan(0) ? netBalance : new Decimal(0);
+
+    return totalAssets.plus(balanceToAdd);
+}
+
+export async function checkNisabEligibility(userId: string): Promise<boolean> {
+    const settings = await prisma.zakatSettings.findUnique({
+        where: { userId },
+    });
+
+    if (!settings) return false;
+
+    const eligibleAmount = await calculateZakatEligibleAmount(userId);
+    return eligibleAmount.greaterThanOrEqualTo(settings.nisabAmount);
+}
+
+export async function calculateZakatPayable(userId: string): Promise<Decimal> {
+    const settings = await prisma.zakatSettings.findUnique({
+        where: { userId },
+    });
+
+    if (!settings) return new Decimal(0);
+
+    const eligibleAmount = await calculateZakatEligibleAmount(userId);
+
+    if (eligibleAmount.lessThan(settings.nisabAmount)) {
+        return new Decimal(0);
+    }
+
+    const rate = settings.zakatRate.dividedBy(100);
+    return eligibleAmount.times(rate);
+}
+
+export async function getZakatPaid(userId: string, year?: number): Promise<Decimal> {
+    const currentYear = year || new Date().getFullYear();
+    const startDate = new Date(currentYear, 0, 1);
+    const endDate = new Date(currentYear, 11, 31, 23, 59, 59);
+
+    const payments = await prisma.zakatPayment.aggregate({
+        where: {
+            userId,
+            paymentDate: {
+                gte: startDate,
+                lte: endDate,
+            },
+        },
+        _sum: {
+            amountPaid: true,
+        },
+    });
+
+    return payments._sum.amountPaid || new Decimal(0);
+}
+
+export async function getZakatDue(userId: string): Promise<Decimal> {
+    const payable = await calculateZakatPayable(userId);
+    const paid = await getZakatPaid(userId);
+
+    const due = payable.minus(paid);
+    return due.greaterThan(0) ? due : new Decimal(0);
+}
+
+export async function getZakatSummary(userId: string): Promise<ZakatSummary> {
+    const [
+        totalAssets,
+        netBalance,
+        eligibleAmount,
+        settings,
+        zakatPayable,
+        zakatPaid,
+        zakatDue,
+    ] = await Promise.all([
+        calculateTotalAssets(userId),
+        calculateNetBalance(userId),
+        calculateZakatEligibleAmount(userId),
+        prisma.zakatSettings.findUnique({ where: { userId } }),
+        calculateZakatPayable(userId),
+        getZakatPaid(userId),
+        getZakatDue(userId),
+    ]);
+
+    const nisabAmount = settings?.nisabAmount || new Decimal(0);
+    const zakatRate = settings?.zakatRate || new Decimal(2.5);
+    const meetsNisab = eligibleAmount.greaterThanOrEqualTo(nisabAmount);
 
     return {
-        totalWealth,
-        netWealth,
+        totalAssets,
+        netBalance,
+        eligibleAmount,
+        nisabAmount,
+        meetsNisab,
+        zakatPayable,
+        zakatPaid,
         zakatDue,
-        isEligible,
-        nisabThreshold,
+        zakatRate,
     };
 }
 
-/**
- * Calculate Nisab threshold based on current gold price
- * @param goldPricePerGram - Current price of gold per gram in currency
- * @returns Nisab threshold amount
- */
-export function calculateNisabFromGold(goldPricePerGram: number): number {
-    return goldPricePerGram * NISAB_GOLD_GRAMS;
-}
+export async function getHistoricalSummary(userId: string, years: number = 3) {
+    const currentYear = new Date().getFullYear();
+    const summaryPromises = [];
 
-/**
- * Calculate Nisab threshold based on current silver price
- * @param silverPricePerGram - Current price of silver per gram in currency
- * @returns Nisab threshold amount
- */
-export function calculateNisabFromSilver(silverPricePerGram: number): number {
-    return silverPricePerGram * NISAB_SILVER_GRAMS;
+    for (let i = 0; i < years; i++) {
+        const year = currentYear - i;
+        summaryPromises.push(
+            getZakatPaid(userId, year).then((paid) => ({
+                year,
+                amountPaid: paid,
+            }))
+        );
+    }
+
+    return Promise.all(summaryPromises);
 }
