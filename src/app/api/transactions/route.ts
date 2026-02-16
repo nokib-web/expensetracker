@@ -2,164 +2,137 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
-import { z } from 'zod';
+import { TransactionSchema } from '@/lib/validations';
 import { createNotification } from '@/lib/notifications';
+import { withErrorHandler, UnauthorizedError, ValidationError, NotFoundError, ForbiddenError } from '@/lib/errors';
 
-const transactionSchema = z.object({
-    type: z.enum(['INCOME', 'EXPENSE']),
-    amount: z.number().positive(),
-    categoryId: z.string().uuid(),
-    description: z.string().optional().nullable(),
-    transactionDate: z.string().transform((str) => new Date(str)),
+export const GET = withErrorHandler(async (request: NextRequest) => {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) {
+        throw new UnauthorizedError();
+    }
+
+    const { searchParams } = new URL(request.url);
+    const limit = parseInt(searchParams.get('limit') || '10');
+    const cursor = searchParams.get('cursor');
+    const type = searchParams.get('type') as 'INCOME' | 'EXPENSE' | null;
+    const categoryId = searchParams.get('category');
+    const startDate = searchParams.get('start');
+    const endDate = searchParams.get('end');
+    const minAmount = searchParams.get('min');
+    const maxAmount = searchParams.get('max');
+    const sortBy = searchParams.get('sortBy') || 'transactionDate';
+    const sortOrder = searchParams.get('sortOrder') || 'desc';
+    const search = searchParams.get('search');
+
+    const where: any = {
+        userId: session.user.id,
+    };
+
+    if (type) where.type = type;
+    if (categoryId) where.categoryId = categoryId;
+    if (startDate || endDate) {
+        where.transactionDate = {};
+        if (startDate) where.transactionDate.gte = new Date(startDate);
+        if (endDate) where.transactionDate.lte = new Date(endDate);
+    }
+    if (minAmount || maxAmount) {
+        where.amount = {};
+        if (minAmount) where.amount.gte = parseFloat(minAmount);
+        if (maxAmount) where.amount.lte = parseFloat(maxAmount);
+    }
+    if (search) {
+        where.description = { contains: search, mode: 'insensitive' };
+    }
+
+    const transactions = await prisma.transaction.findMany({
+        where,
+        take: limit + 1,
+        cursor: cursor ? { id: cursor } : undefined,
+        skip: cursor ? 1 : 0,
+        select: {
+            id: true,
+            type: true,
+            amount: true,
+            description: true,
+            transactionDate: true,
+            category: {
+                select: {
+                    id: true,
+                    name: true,
+                },
+            },
+        },
+        orderBy: {
+            [sortBy]: sortOrder,
+        },
+    });
+
+    const hasNextPage = transactions.length > limit;
+    const items = hasNextPage ? transactions.slice(0, -1) : transactions;
+    const nextCursor = hasNextPage ? items[items.length - 1].id : null;
+
+    return NextResponse.json({
+        success: true,
+        transactions: items,
+        nextCursor,
+    });
 });
 
-export async function GET(request: NextRequest) {
-    try {
-        const session = await getServerSession(authOptions);
-        if (!session?.user?.id) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
+export const POST = withErrorHandler(async (request: NextRequest) => {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) {
+        throw new UnauthorizedError();
+    }
 
-        const { searchParams } = new URL(request.url);
-        const page = parseInt(searchParams.get('page') || '1');
-        const limit = parseInt(searchParams.get('limit') || '10');
-        const type = searchParams.get('type') as 'INCOME' | 'EXPENSE' | null;
-        const categoryId = searchParams.get('category');
-        const startDate = searchParams.get('start');
-        const endDate = searchParams.get('end');
-        const minAmount = searchParams.get('min');
-        const maxAmount = searchParams.get('max');
-        const sortBy = searchParams.get('sortBy') || 'transactionDate';
-        const sortOrder = searchParams.get('sortOrder') || 'desc';
-        const search = searchParams.get('search');
+    const body = await request.json();
+    const validatedData = TransactionSchema.safeParse(body);
 
-        const skip = (page - 1) * limit;
+    if (!validatedData.success) {
+        throw new ValidationError(validatedData.error.issues[0].message);
+    }
 
-        const where: any = {
+    const { categoryId, type } = validatedData.data;
+
+    // Verify category exists and belongs to user and matches type
+    const category = await prisma.category.findFirst({
+        where: {
+            id: categoryId,
             userId: session.user.id,
-        };
+            type: type as any, // Cast because of different enum types in schema vs validation
+        },
+    });
 
-        if (type) {
-            where.type = type;
-        }
-
-        if (categoryId) {
-            where.categoryId = categoryId;
-        }
-
-        if (startDate || endDate) {
-            where.transactionDate = {};
-            if (startDate) {
-                where.transactionDate.gte = new Date(startDate);
-            }
-            if (endDate) {
-                where.transactionDate.lte = new Date(endDate);
-            }
-        }
-
-        if (minAmount || maxAmount) {
-            where.amount = {};
-            if (minAmount) {
-                where.amount.gte = parseFloat(minAmount);
-            }
-            if (maxAmount) {
-                where.amount.lte = parseFloat(maxAmount);
-            }
-        }
-
-        if (search) {
-            where.description = {
-                contains: search,
-                mode: 'insensitive',
-            };
-        }
-
-        const [transactions, total] = await Promise.all([
-            prisma.transaction.findMany({
-                where,
-                include: {
-                    category: true,
-                },
-                orderBy: {
-                    [sortBy]: sortOrder,
-                },
-                skip,
-                take: limit,
-            }),
-            prisma.transaction.count({ where }),
-        ]);
-
-        return NextResponse.json({
-            transactions,
-            pagination: {
-                total,
-                pages: Math.ceil(total / limit),
-                currentPage: page,
-                limit,
-            },
-        });
-    } catch (error) {
-        console.error('Transactions GET error:', error);
-        return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+    if (!category) {
+        throw new ValidationError('Invalid category or category type mismatch');
     }
-}
 
-export async function POST(request: NextRequest) {
-    try {
-        const session = await getServerSession(authOptions);
-        if (!session?.user?.id) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
+    const transaction = await prisma.transaction.create({
+        data: {
+            ...validatedData.data,
+            userId: session.user.id,
+        },
+        include: {
+            category: true,
+        },
+    });
 
-        const body = await request.json();
-        const validatedData = transactionSchema.safeParse(body);
+    // Trigger Notification if large transaction
+    const prefs = await prisma.notificationPreference.findUnique({ where: { userId: session.user.id } });
+    const limit = prefs?.largeTransactionLimit ? Number(prefs.largeTransactionLimit) : 1000;
 
-        if (!validatedData.success) {
-            return NextResponse.json({ error: validatedData.error.issues[0].message }, { status: 400 });
-        }
-
-        const { categoryId, type } = validatedData.data;
-
-        // Verify category exists and belongs to user and matches type
-        const category = await prisma.category.findFirst({
-            where: {
-                id: categoryId,
-                userId: session.user.id,
-                type: type,
-            },
-        });
-
-        if (!category) {
-            return NextResponse.json({ error: 'Invalid category' }, { status: 400 });
-        }
-
-        const transaction = await prisma.transaction.create({
-            data: {
-                ...validatedData.data,
-                userId: session.user.id,
-            },
-            include: {
-                category: true,
-            },
-        });
-
-        // Trigger Notification if large transaction
-        const prefs = await prisma.notificationPreference.findUnique({ where: { userId: session.user.id } });
-        const limit = prefs?.largeTransactionLimit ? Number(prefs.largeTransactionLimit) : 1000;
-
-        if (Number(transaction.amount) >= limit) {
-            await createNotification(
-                session.user.id,
-                'LARGE_TRANSACTION',
-                'Large Transaction Alert',
-                `A ${transaction.type.toLowerCase()} of $${Number(transaction.amount).toFixed(2)} was recorded: ${transaction.description || 'No description'}.`,
-                `/transactions?id=${transaction.id}`
-            );
-        }
-
-        return NextResponse.json(transaction, { status: 201 });
-    } catch (error) {
-        console.error('Transaction POST error:', error);
-        return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+    if (Number(transaction.amount) >= limit) {
+        await createNotification(
+            session.user.id,
+            'LARGE_TRANSACTION',
+            'Large Transaction Alert',
+            `A ${transaction.type.toLowerCase()} of $${Number(transaction.amount).toFixed(2)} was recorded: ${transaction.description || 'No description'}.`,
+            `/transactions?id=${transaction.id}`
+        );
     }
-}
+
+    return NextResponse.json({
+        success: true,
+        data: transaction
+    }, { status: 201 });
+});

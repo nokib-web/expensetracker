@@ -120,27 +120,48 @@ export async function getZakatDue(userId: string): Promise<Decimal> {
 }
 
 export async function getZakatSummary(userId: string): Promise<ZakatSummary> {
-    const [
-        totalAssets,
-        netBalance,
-        eligibleAmount,
-        settings,
-        zakatPayable,
-        zakatPaid,
-        zakatDue,
-    ] = await Promise.all([
-        calculateTotalAssets(userId),
-        calculateNetBalance(userId),
-        calculateZakatEligibleAmount(userId),
+    const currentYear = new Date().getFullYear();
+    const startDate = new Date(currentYear, 0, 1);
+    const endDate = new Date(currentYear, 11, 31, 23, 59, 59);
+
+    const [assetsAgg, transAgg, settings, paymentsAgg] = await Promise.all([
+        prisma.zakatAsset.aggregate({
+            where: { userId },
+            _sum: { amount: true },
+        }),
+        prisma.transaction.groupBy({
+            by: ['type'],
+            where: { userId },
+            _sum: { amount: true },
+        }),
         prisma.zakatSettings.findUnique({ where: { userId } }),
-        calculateZakatPayable(userId),
-        getZakatPaid(userId),
-        getZakatDue(userId),
+        prisma.zakatPayment.aggregate({
+            where: {
+                userId,
+                paymentDate: { gte: startDate, lte: endDate },
+            },
+            _sum: { amountPaid: true },
+        }),
     ]);
+
+    const totalAssets = assetsAgg._sum.amount || new Decimal(0);
+    const income = transAgg.find(t => t.type === 'INCOME')?._sum.amount || new Decimal(0);
+    const expense = transAgg.find(t => t.type === 'EXPENSE')?._sum.amount || new Decimal(0);
+    const netBalance = income.minus(expense);
+    const balanceToAdd = netBalance.greaterThan(0) ? netBalance : new Decimal(0);
+    const eligibleAmount = totalAssets.plus(balanceToAdd);
 
     const nisabAmount = settings?.nisabAmount || new Decimal(0);
     const zakatRate = settings?.zakatRate || new Decimal(2.5);
     const meetsNisab = eligibleAmount.greaterThanOrEqualTo(nisabAmount);
+
+    const zakatPayable = meetsNisab
+        ? eligibleAmount.times(zakatRate.dividedBy(100))
+        : new Decimal(0);
+
+    const zakatPaid = paymentsAgg._sum.amountPaid || new Decimal(0);
+    const dueValue = zakatPayable.minus(zakatPaid);
+    const zakatDue = dueValue.greaterThan(0) ? dueValue : new Decimal(0);
 
     return {
         totalAssets,

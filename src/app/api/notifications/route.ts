@@ -2,41 +2,37 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { withErrorHandler, UnauthorizedError } from "@/lib/errors";
 
-export async function GET() {
+export const GET = withErrorHandler(async () => {
     const session = await getServerSession(authOptions);
 
-    if (!session?.user) {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!session?.user?.id) {
+        throw new UnauthorizedError();
     }
 
-    try {
-        const notifications = await prisma.notification.findMany({
-            where: { userId: session.user.id },
-            orderBy: { createdAt: 'desc' },
-            take: 50,
-        });
+    const notifications = await prisma.notification.findMany({
+        where: { userId: session.user.id },
+        orderBy: { createdAt: 'desc' },
+        take: 50,
+    });
 
-        return NextResponse.json(notifications);
-    } catch (error) {
-        return NextResponse.json({ error: "Failed to fetch notifications" }, { status: 500 });
-    }
-}
+    return NextResponse.json({
+        success: true,
+        data: notifications
+    });
+});
 
-export async function DELETE() {
+export const DELETE = withErrorHandler(async () => {
     const session = await getServerSession(authOptions);
 
-    if (!session?.user) {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!session?.user?.id) {
+        throw new UnauthorizedError();
     }
 
-    try {
-        await prisma.notification.deleteMany({
-            where: { userId: session.user.id },
-        });
+    await prisma.notification.deleteMany({
+        where: { userId: session.user.id },
+    });
 
-        return NextResponse.json({ success: true });
-    } catch (error) {
-        return NextResponse.json({ error: "Failed to clear notifications" }, { status: 500 });
-    }
-}
+    return NextResponse.json({ success: true, message: 'Notifications cleared' });
+});

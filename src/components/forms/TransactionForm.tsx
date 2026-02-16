@@ -1,9 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
 import {
     Dialog,
     DialogContent,
@@ -13,25 +12,13 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Select } from '@/components/ui/select';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 
 import { CategorySelect } from '@/components/forms/CategorySelect';
-
-const transactionSchema = z.object({
-    type: z.enum(['INCOME', 'EXPENSE']),
-    amount: z.preprocess(
-        (val) => (typeof val === 'string' ? parseFloat(val) : val),
-        z.number().positive('Amount must be positive')
-    ),
-    categoryId: z.string().min(1, 'Please select a category'),
-    description: z.string().optional(),
-    transactionDate: z.string(),
-});
-
-type TransactionFormValues = z.infer<typeof transactionSchema>;
+import { TransactionSchema, type TransactionValues } from '@/lib/validations';
+import { api } from '@/lib/api-client';
 
 interface Transaction {
     id: string;
@@ -55,7 +42,7 @@ export function TransactionForm({
     transaction,
     onSuccess,
 }: TransactionFormProps) {
-    const [isSubmitting, setIsSubmitting] = useState(false);
+    const queryClient = useQueryClient();
 
     const {
         register,
@@ -63,13 +50,13 @@ export function TransactionForm({
         watch,
         setValue,
         reset,
-        formState: { errors },
-    } = useForm<TransactionFormValues>({
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        resolver: zodResolver(transactionSchema) as any,
+        formState: { errors, isValid },
+    } = useForm<TransactionValues>({
+        resolver: zodResolver(TransactionSchema),
+        mode: 'onChange',
         defaultValues: {
             type: 'EXPENSE',
-            transactionDate: new Date().toISOString().split('T')[0],
+            transactionDate: new Date(),
         },
     });
 
@@ -83,63 +70,94 @@ export function TransactionForm({
                 amount: transaction.amount,
                 categoryId: transaction.categoryId,
                 description: transaction.description || '',
-                transactionDate: new Date(transaction.transactionDate).toISOString().split('T')[0],
+                transactionDate: new Date(transaction.transactionDate),
             });
         } else if (open) {
             reset({
                 type: 'EXPENSE',
-                amount: undefined,
+                amount: undefined as any,
                 categoryId: '',
                 description: '',
-                transactionDate: new Date().toISOString().split('T')[0],
+                transactionDate: new Date(),
             });
         }
     }, [transaction, open, reset]);
 
-    const onSubmit = async (data: TransactionFormValues) => {
-        setIsSubmitting(true);
-        try {
+    const mutation = useMutation({
+        mutationFn: async (data: TransactionValues) => {
             const url = transaction ? `/api/transactions/${transaction.id}` : '/api/transactions';
-            const method = transaction ? 'PUT' : 'POST';
-
-            const response = await fetch(url, {
-                method,
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data),
-            });
-
-            const result = await response.json();
-
-            if (!response.ok) {
-                throw new Error(result.error || 'Something went wrong');
+            if (transaction) {
+                return api.put(url, data);
+            } else {
+                return api.post(url, data);
             }
+        },
+        onMutate: async (newTransaction) => {
+            await queryClient.cancelQueries({ queryKey: ['transactions'] });
+            const previousTransactions = queryClient.getQueryData(['transactions']);
 
+            if (!transaction) { // Optimistic only for 'Add'
+                queryClient.setQueryData(['transactions'], (old: any) => {
+                    if (!old) return old;
+                    return {
+                        ...old,
+                        pages: old.pages.map((page: any, index: number) => {
+                            if (index === 0) {
+                                return {
+                                    ...page,
+                                    transactions: [
+                                        {
+                                            id: 'temp-' + Date.now(),
+                                            ...newTransaction,
+                                            transactionDate: newTransaction.transactionDate.toISOString(),
+                                            category: { id: newTransaction.categoryId, name: 'Saving...' }
+                                        },
+                                        ...page.transactions
+                                    ]
+                                };
+                            }
+                            return page;
+                        })
+                    };
+                });
+            }
+            return { previousTransactions };
+        },
+        onError: (err, _, context) => {
+            queryClient.setQueryData(['transactions'], context?.previousTransactions);
+            toast.error(err.message);
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['transactions'] });
+            queryClient.invalidateQueries({ queryKey: ['dashboard-summary'] });
             toast.success(`Transaction ${transaction ? 'updated' : 'added'} successfully`);
-            onSuccess();
             onOpenChange(false);
             reset();
-        } catch (error: any) {
-            toast.error(error.message);
-        } finally {
-            setIsSubmitting(false);
-        }
+            onSuccess();
+        },
+    });
+
+    const onSubmit = (data: TransactionValues) => {
+        mutation.mutate(data);
     };
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-[425px]">
+            <DialogContent className="sm:max-w-[450px] rounded-3xl border-none shadow-2xl">
                 <DialogHeader>
-                    <DialogTitle>{transaction ? 'Edit Transaction' : 'Add Transaction'}</DialogTitle>
+                    <DialogTitle className="text-2xl font-black text-slate-900 tracking-tight">
+                        {transaction ? 'Edit Transaction' : 'Add Transaction'}
+                    </DialogTitle>
                 </DialogHeader>
-                <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 py-4">
-                    <div className="grid grid-cols-2 gap-4">
+                <form onSubmit={handleSubmit(onSubmit)} className="space-y-6 py-4">
+                    <div className="grid grid-cols-2 gap-3">
                         <Button
                             type="button"
                             variant={selectedType === 'EXPENSE' ? 'danger' : 'outline'}
-                            className="w-full"
+                            className={`h-12 rounded-xl font-bold transition-all ${selectedType === 'EXPENSE' ? 'shadow-lg shadow-rose-200' : ''}`}
                             onClick={() => {
-                                setValue('type', 'EXPENSE');
-                                setValue('categoryId', '');
+                                setValue('type', 'EXPENSE', { shouldValidate: true });
+                                setValue('categoryId', '', { shouldValidate: true });
                             }}
                         >
                             Expense
@@ -147,66 +165,83 @@ export function TransactionForm({
                         <Button
                             type="button"
                             variant={selectedType === 'INCOME' ? 'success' : 'outline'}
-                            className="w-full"
+                            className={`h-12 rounded-xl font-bold transition-all ${selectedType === 'INCOME' ? 'shadow-lg shadow-emerald-200' : ''}`}
                             onClick={() => {
-                                setValue('type', 'INCOME');
-                                setValue('categoryId', '');
+                                setValue('type', 'INCOME', { shouldValidate: true });
+                                setValue('categoryId', '', { shouldValidate: true });
                             }}
                         >
                             Income
                         </Button>
                     </div>
 
-                    <Input
-                        label="Amount"
-                        type="number"
-                        step="0.01"
-                        placeholder="0.00"
-                        {...register('amount')}
-                        error={errors.amount?.message}
-                    />
-
-                    <CategorySelect
-                        label="Category"
-                        type={selectedType}
-                        value={categoryId}
-                        onChange={(val) => setValue('categoryId', val)}
-                        error={errors.categoryId?.message}
-                    />
-
-
-                    <div className="space-y-2">
-                        <label className="text-sm font-medium">Date</label>
+                    <div className="space-y-1.5">
+                        <label className="text-xs font-black uppercase text-slate-400 tracking-wider ml-1">Amount</label>
                         <Input
-                            type="date"
-                            {...register('transactionDate')}
-                            error={errors.transactionDate?.message}
+                            type="number"
+                            step="0.01"
+                            placeholder="0.00"
+                            className="h-12 rounded-xl border-slate-200 focus:ring-primary/20 text-lg font-bold"
+                            {...register('amount')}
                         />
+                        {errors.amount && (
+                            <p className="text-xs font-bold text-rose-600 ml-1">{errors.amount.message}</p>
+                        )}
                     </div>
 
-                    <div className="space-y-2">
-                        <label className="text-sm font-medium">Description (Optional)</label>
+                    <div className="space-y-1.5">
+                        <label className="text-xs font-black uppercase text-slate-400 tracking-wider ml-1">Category</label>
+                        <CategorySelect
+                            type={selectedType}
+                            value={categoryId}
+                            onChange={(val) => setValue('categoryId', val, { shouldValidate: true })}
+                        />
+                        {errors.categoryId && (
+                            <p className="text-xs font-bold text-rose-600 ml-1">{errors.categoryId.message}</p>
+                        )}
+                    </div>
+
+                    <div className="space-y-1.5">
+                        <label className="text-xs font-black uppercase text-slate-400 tracking-wider ml-1">Date</label>
+                        <Input
+                            type="date"
+                            className="h-12 rounded-xl border-slate-200 focus:ring-primary/20 font-medium"
+                            defaultValue={watch('transactionDate')?.toISOString().split('T')[0]}
+                            onChange={(e) => setValue('transactionDate', new Date(e.target.value), { shouldValidate: true })}
+                        />
+                        {errors.transactionDate && (
+                            <p className="text-xs font-bold text-rose-600 ml-1">{errors.transactionDate.message}</p>
+                        )}
+                    </div>
+
+                    <div className="space-y-1.5">
+                        <label className="text-xs font-black uppercase text-slate-400 tracking-wider ml-1">Description (Optional)</label>
                         <textarea
-                            className="flex min-h-[80px] w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:cursor-not-allowed disabled:opacity-50"
+                            className="flex min-h-[100px] w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all resize-none"
                             placeholder="Lunch with friends..."
                             {...register('description')}
                         />
                         {errors.description && (
-                            <p className="text-sm text-red-600">{errors.description.message}</p>
+                            <p className="text-xs font-bold text-rose-600 ml-1">{errors.description.message}</p>
                         )}
                     </div>
 
-                    <DialogFooter>
+                    <DialogFooter className="pt-2 gap-2 sm:gap-0">
                         <Button
                             type="button"
                             variant="outline"
+                            className="h-12 rounded-xl font-bold sm:flex-1"
                             onClick={() => onOpenChange(false)}
-                            disabled={isSubmitting}
+                            disabled={mutation.isPending}
                         >
                             Cancel
                         </Button>
-                        <Button type="submit" disabled={isSubmitting} className="min-w-[100px]">
-                            {isSubmitting ? <LoadingSpinner size="sm" /> : transaction ? 'Update' : 'Add'}
+                        <Button
+                            type="submit"
+                            disabled={mutation.isPending || !isValid}
+                            className="h-12 rounded-xl font-black uppercase tracking-widest text-[11px] sm:flex-1 shadow-lg shadow-primary/20"
+                        >
+                            {mutation.isPending ? <LoadingSpinner size="sm" /> : transaction ? 'Update Transaction' : 'Add Transaction'}
                         </Button>
                     </DialogFooter>
                 </form>

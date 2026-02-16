@@ -109,6 +109,8 @@ model Transaction {
   category        Category        @relation(fields: [categoryId], references: [id])
 
   @@index([userId, transactionDate])
+  @@index([userId, categoryId])
+  @@index([userId, type])
 }
 
 model ZakatSettings {
