@@ -3,8 +3,19 @@ import { prisma } from '@/lib/prisma';
 import { hashPassword } from '@/lib/auth-utils';
 import { RegisterSchema } from '@/lib/validations';
 import { withErrorHandler, ValidationError, ConflictError } from '@/lib/errors';
+import { logAction } from '@/lib/audit';
+import { isRateLimited } from '@/lib/ratelimit';
+import { TooManyRequestsError } from '@/lib/errors';
 
 export const POST = withErrorHandler(async (request: NextRequest) => {
+    // Rate limiting
+    const ip = request.headers.get('x-forwarded-for') || 'unknown';
+    const { limited } = await isRateLimited(`register:${ip}`, 5, 15 * 60 * 1000); // 5 attempts per 15 min
+
+    if (limited) {
+        throw new TooManyRequestsError();
+    }
+
     const body = await request.json();
 
     // Validate input using the comprehensive RegisterSchema
@@ -102,6 +113,8 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
 
         return newUser;
     });
+
+    await logAction(user.id, 'USER_REGISTERED', 'User', { email: user.email });
 
     return NextResponse.json({
         success: true,

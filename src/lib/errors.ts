@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { isRateLimited } from "./ratelimit";
+import { headers } from "next/headers";
 
 export class AppError extends Error {
     statusCode: number;
@@ -47,9 +49,26 @@ export class ConflictError extends AppError {
     }
 }
 
+export class TooManyRequestsError extends AppError {
+    constructor(message = 'Too many requests, please try again later') {
+        super(message, 429);
+    }
+}
+
+
+
 export function withErrorHandler(handler: Function) {
     return async (...args: any[]) => {
         try {
+            // Apply global API rate limit (100 req per 15 min)
+            const headersList = await headers();
+            const ip = headersList.get('x-forwarded-for') || 'unknown';
+            const { limited } = await isRateLimited(`api:${ip}`, 100, 15 * 60 * 1000);
+
+            if (limited) {
+                throw new TooManyRequestsError();
+            }
+
             return await handler(...args);
         } catch (error: any) {
             if (process.env.NODE_ENV === 'development') {

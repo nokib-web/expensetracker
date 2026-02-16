@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma';
 import { TransactionSchema } from '@/lib/validations';
 import { createNotification } from '@/lib/notifications';
 import { withErrorHandler, UnauthorizedError, ValidationError, NotFoundError, ForbiddenError } from '@/lib/errors';
+import { logAction } from '@/lib/audit';
 
 export const GET = withErrorHandler(async (request: NextRequest) => {
     const session = await getServerSession(authOptions);
@@ -115,6 +116,12 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
         include: {
             category: true,
         },
+    });
+
+    await logAction(session.user.id, 'TRANSACTION_CREATED', 'Transaction', {
+        id: transaction.id,
+        type: transaction.type,
+        amount: Number(transaction.amount)
     });
 
     // Trigger Notification if large transaction

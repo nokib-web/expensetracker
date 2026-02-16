@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { TransactionSchema } from '@/lib/validations';
 import { withErrorHandler, UnauthorizedError, ValidationError, NotFoundError, ForbiddenError } from '@/lib/errors';
+import { logAction } from '@/lib/audit';
 
 export const PUT = withErrorHandler(async (
     request: NextRequest,
@@ -60,6 +61,12 @@ export const PUT = withErrorHandler(async (
         },
     });
 
+    await logAction(session.user.id, 'TRANSACTION_UPDATED', 'Transaction', {
+        id: transaction.id,
+        oldAmount: Number(existingTransaction.amount),
+        newAmount: Number(transaction.amount)
+    });
+
     return NextResponse.json({
         success: true,
         data: transaction
@@ -92,6 +99,12 @@ export const DELETE = withErrorHandler(async (
 
     await prisma.transaction.delete({
         where: { id },
+    });
+
+    await logAction(session.user.id, 'TRANSACTION_DELETED', 'Transaction', {
+        id: existingTransaction.id,
+        type: existingTransaction.type,
+        amount: Number(existingTransaction.amount)
     });
 
     return NextResponse.json({

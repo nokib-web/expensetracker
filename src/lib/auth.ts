@@ -2,10 +2,12 @@ import { NextAuthOptions } from 'next-auth';
 import CredentialsProvider from 'next-auth/providers/credentials';
 import { compare } from 'bcryptjs';
 import { prisma } from './prisma';
+import { logAction } from './audit';
 
 export const authOptions: NextAuthOptions = {
     session: {
         strategy: 'jwt',
+        maxAge: 7 * 24 * 60 * 60, // 7 days
     },
     pages: {
         signIn: '/login',
@@ -32,14 +34,18 @@ export const authOptions: NextAuthOptions = {
                 });
 
                 if (!user || !user.passwordHash) {
+                    await logAction(null, 'LOGIN_FAILED', 'User', { email: credentials.email, reason: 'User not found' });
                     throw new Error('Invalid credentials');
                 }
 
                 const isPasswordValid = await compare(credentials.password, user.passwordHash);
 
                 if (!isPasswordValid) {
+                    await logAction(user.id, 'LOGIN_FAILED', 'User', { email: credentials.email, reason: 'Invalid password' });
                     throw new Error('Invalid credentials');
                 }
+
+                await logAction(user.id, 'LOGIN_SUCCESS', 'User', { email: user.email });
 
                 return {
                     id: user.id,
