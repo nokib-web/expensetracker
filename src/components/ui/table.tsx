@@ -34,18 +34,19 @@ export function TableBody({ children, className }: TableBodyProps) {
     return <tbody className={cn('[&_tr:last-child]:border-0', className)}>{children}</tbody>;
 }
 
-interface TableRowProps {
+interface TableRowProps extends React.HTMLAttributes<HTMLTableRowElement> {
     children: React.ReactNode;
     className?: string;
 }
 
-export function TableRow({ children, className }: TableRowProps) {
+export function TableRow({ children, className, ...props }: TableRowProps) {
     return (
         <tr
             className={cn(
                 'border-b transition-colors hover:bg-gray-50',
                 className
             )}
+            {...props}
         >
             {children}
         </tr>
@@ -70,14 +71,14 @@ export function TableHead({ children, className }: TableHeadProps) {
     );
 }
 
-interface TableCellProps {
+interface TableCellProps extends React.TdHTMLAttributes<HTMLTableCellElement> {
     children: React.ReactNode;
     className?: string;
 }
 
-export function TableCell({ children, className }: TableCellProps) {
+export function TableCell({ children, className, ...props }: TableCellProps) {
     return (
-        <td className={cn('p-4 align-middle', className)}>
+        <td className={cn('p-4 align-middle', className)} {...props}>
             {children}
         </td>
     );
