@@ -3,25 +3,25 @@ import { cn } from '@/lib/utils';
 
 interface BadgeProps {
     children: React.ReactNode;
-    variant?: 'default' | 'success' | 'warning' | 'danger' | 'info' | 'outline';
+    variant?: 'default' | 'success' | 'warning' | 'danger' | 'info' | 'outline' | 'secondary';
     className?: string;
 }
 
 const variantStyles = {
-    default: 'bg-gray-100 text-gray-800',
-    success: 'bg-green-100 text-green-800',
-    warning: 'bg-yellow-100 text-yellow-800',
-    danger: 'bg-red-100 text-red-800',
-    info: 'bg-blue-100 text-blue-800',
-    outline: 'border border-gray-300 text-gray-600 bg-transparent',
+    default: 'bg-primary/10 text-primary',
+    success: 'bg-emerald-50 text-emerald-600',
+    warning: 'bg-amber-50 text-amber-600',
+    danger: 'bg-rose-50 text-rose-600',
+    info: 'bg-blue-50 text-blue-600',
+    secondary: 'bg-slate-50 text-slate-500',
+    outline: 'border-2 border-slate-100 text-slate-500 bg-transparent',
 };
-
 
 export function Badge({ children, variant = 'default', className }: BadgeProps) {
     return (
         <span
             className={cn(
-                'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium',
+                'inline-flex items-center px-2 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-widest',
                 variantStyles[variant],
                 className
             )}

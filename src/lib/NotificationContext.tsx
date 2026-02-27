@@ -34,14 +34,21 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     const queryClient = useQueryClient();
 
     // Fetch notifications from API
-    const { data: notifications = [], isLoading } = useQuery({
+    const { data: response, isLoading } = useQuery({
         queryKey: ['notifications'],
-        queryFn: () => fetch('/api/notifications').then(res => res.json()),
+        queryFn: async () => {
+            const res = await fetch('/api/notifications');
+            if (!res.ok) throw new Error('Failed to fetch notifications');
+            return res.json();
+        },
         enabled: !!session?.user,
         refetchInterval: 30000, // Poll every 30 seconds
     });
 
-    const unreadCount = notifications.filter((n: Notification) => !n.isRead).length;
+    const notifications = response?.data || [];
+    const unreadCount = Array.isArray(notifications)
+        ? notifications.filter((n: Notification) => !n.isRead).length
+        : 0;
 
     const markAsReadMutation = useMutation({
         mutationFn: (id: string) => fetch(`/api/notifications/${id}`, { method: 'PATCH', body: JSON.stringify({ isRead: true }) }),

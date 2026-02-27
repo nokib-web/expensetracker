@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const RegisterSchema = z.object({
+export const RegisterBodySchema = z.object({
     name: z.string().min(2, "Name must be at least 2 characters").max(50, "Name must be less than 50 characters"),
     email: z.string().email("Please enter a valid email address"),
     password: z
@@ -10,6 +10,9 @@ export const RegisterSchema = z.object({
             /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/,
             "Password must contain at least one uppercase letter, one number, and one special character"
         ),
+});
+
+export const RegisterSchema = RegisterBodySchema.extend({
     confirmPassword: z.string(),
 }).refine((data) => data.password === data.confirmPassword, {
     message: "Passwords do not match",

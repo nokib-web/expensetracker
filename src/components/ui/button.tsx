@@ -1,4 +1,5 @@
 import * as React from 'react';
+import { cn } from "@/lib/utils";
 
 export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
     variant?: 'primary' | 'secondary' | 'success' | 'danger' | 'warning' | 'outline' | 'ghost';
@@ -6,32 +7,30 @@ export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElemen
 }
 
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
-    ({ className = '', variant = 'primary', size = 'md', ...props }, ref) => {
+    ({ className, variant = 'primary', size = 'md', ...props }, ref) => {
         const baseStyles =
-            'inline-flex items-center justify-center rounded-md font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50';
+            'inline-flex items-center justify-center rounded-xl font-bold transition-all duration-200 active:scale-95 disabled:opacity-50 disabled:pointer-events-none focus:outline-none focus:ring-2 focus:ring-offset-2';
 
         const variantStyles = {
-            primary: 'bg-[--color-primary] text-white hover:bg-[--color-primary-dark]',
-            secondary: 'bg-[--color-secondary] text-white hover:bg-[--color-secondary-dark]',
-            success: 'bg-[--color-success] text-white hover:bg-[--color-success-dark]',
-            danger: 'bg-[--color-danger] text-white hover:bg-[--color-danger-dark]',
-            warning: 'bg-[--color-warning] text-white hover:bg-[--color-warning-dark]',
-            outline:
-                'border border-gray-300 bg-transparent hover:bg-gray-100 text-gray-700',
-            ghost: 'bg-transparent hover:bg-gray-100 text-gray-700',
+            primary: 'bg-primary text-primary-foreground shadow-lg shadow-primary/20 hover:brightness-110 focus:ring-primary/20',
+            secondary: 'bg-secondary text-secondary-foreground shadow-lg shadow-secondary/20 hover:brightness-110 focus:ring-secondary/20',
+            success: 'bg-success text-success-foreground shadow-lg shadow-success/20 hover:brightness-110 focus:ring-success/20',
+            danger: 'bg-danger text-danger-foreground shadow-lg shadow-danger/20 hover:brightness-110 focus:ring-danger/20',
+            warning: 'bg-warning text-warning-foreground shadow-lg shadow-warning/20 hover:brightness-110 focus:ring-warning/20',
+            outline: 'border-2 border-border bg-transparent hover:bg-slate-50 text-foreground',
+            ghost: 'bg-transparent hover:bg-slate-50 text-foreground',
         };
 
         const sizeStyles = {
-            sm: 'h-9 px-3 text-sm',
-            md: 'h-10 px-4 py-2',
-            lg: 'h-11 px-8 text-lg',
-            icon: 'h-10 w-10',
+            sm: 'h-9 px-4 text-xs tracking-wider uppercase',
+            md: 'h-11 px-6 text-sm',
+            lg: 'h-12 px-8 text-base',
+            icon: 'h-11 w-11 p-0',
         };
-
 
         return (
             <button
-                className={`${baseStyles} ${variantStyles[variant]} ${sizeStyles[size]} ${className}`}
+                className={cn(baseStyles, variantStyles[variant], sizeStyles[size], className)}
                 ref={ref}
                 {...props}
             />

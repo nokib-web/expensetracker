@@ -1,5 +1,6 @@
 import * as React from 'react';
 import { cn } from '@/lib/utils';
+import { ChevronDown } from 'lucide-react';
 
 export interface SelectProps extends React.SelectHTMLAttributes<HTMLSelectElement> {
     label?: string;
@@ -9,26 +10,29 @@ export interface SelectProps extends React.SelectHTMLAttributes<HTMLSelectElemen
 const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
     ({ className, label, error, children, ...props }, ref) => {
         return (
-            <div className="space-y-2">
+            <div className="space-y-1.5">
                 {label && (
-                    <label className="text-sm font-medium text-gray-700">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">
                         {label}
                     </label>
                 )}
-                <select
-                    className={cn(
-                        'flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm',
-                        'focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent',
-                        'disabled:cursor-not-allowed disabled:opacity-50',
-                        error && 'border-red-500 focus:ring-red-500',
-                        className
-                    )}
-                    ref={ref}
-                    {...props}
-                >
-                    {children}
-                </select>
-                {error && <p className="text-sm text-red-600">{error}</p>}
+                <div className="relative">
+                    <select
+                        className={cn(
+                            'w-full h-12 pl-4 pr-10 rounded-xl border-2 border-border bg-card text-sm font-bold transition-all appearance-none cursor-pointer',
+                            'focus:outline-none focus:ring-4 focus:ring-primary/10 focus:border-primary',
+                            'disabled:cursor-not-allowed disabled:opacity-50',
+                            error && 'border-danger focus:ring-danger/10',
+                            className
+                        )}
+                        ref={ref}
+                        {...props}
+                    >
+                        {children}
+                    </select>
+                    <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
+                </div>
+                {error && <p className="text-[10px] font-bold text-danger ml-1 uppercase tracking-tight">{error}</p>}
             </div>
         );
     }

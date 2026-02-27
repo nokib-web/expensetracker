@@ -36,12 +36,12 @@ export function ChartSkeleton() {
                 <Skeleton className="h-6 w-32" />
                 <Skeleton className="h-8 w-24" />
             </div>
-            <div className="flex items-end justify-between h-[250px] gap-4 pt-10">
-                {[1, 2, 3, 4, 5].map((i) => (
+            <div className="flex items-end justify-between h-[250px] gap-4 pt-10 px-2">
+                {[40, 70, 45, 90, 65].map((height, i) => (
                     <Skeleton
                         key={i}
                         className="w-full rounded-t-xl"
-                        style={{ height: `${Math.random() * 80 + 20}%` }}
+                        style={{ height: `${height}%` }}
                     />
                 ))}
             </div>
