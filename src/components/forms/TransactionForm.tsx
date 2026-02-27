@@ -19,6 +19,8 @@ import toast from 'react-hot-toast';
 import { CategorySelect } from '@/components/forms/CategorySelect';
 import { TransactionSchema, type TransactionValues } from '@/lib/validations';
 import { api } from '@/lib/api-client';
+import { cn } from '@/lib/utils';
+import { FieldValues } from 'react-hook-form';
 
 interface Transaction {
     id: string;
@@ -52,7 +54,7 @@ export function TransactionForm({
         reset,
         formState: { errors, isValid },
     } = useForm<TransactionValues>({
-        resolver: zodResolver(TransactionSchema),
+        resolver: zodResolver(TransactionSchema) as any,
         mode: 'onChange',
         defaultValues: {
             type: 'EXPENSE',
@@ -149,30 +151,40 @@ export function TransactionForm({
                         {transaction ? 'Edit Transaction' : 'Add Transaction'}
                     </DialogTitle>
                 </DialogHeader>
-                <form onSubmit={handleSubmit(onSubmit)} className="space-y-6 py-4">
-                    <div className="grid grid-cols-2 gap-3">
-                        <Button
+                <form onSubmit={handleSubmit(onSubmit as any)} className="space-y-6 py-4">
+                    <div className="flex p-1 bg-slate-100 dark:bg-slate-800 rounded-2xl relative">
+                        <div
+                            className={cn(
+                                "absolute h-[calc(100%-8px)] w-[calc(50%-4px)] top-1 rounded-xl transition-all duration-300 ease-out shadow-sm",
+                                selectedType === 'EXPENSE' ? "left-1 bg-rose-500 shadow-rose-200" : "left-[calc(50%+2px)] bg-emerald-500 shadow-emerald-200"
+                            )}
+                        />
+                        <button
                             type="button"
-                            variant={selectedType === 'EXPENSE' ? 'danger' : 'outline'}
-                            className={`h-12 rounded-xl font-bold transition-all ${selectedType === 'EXPENSE' ? 'shadow-lg shadow-rose-200' : ''}`}
+                            className={cn(
+                                "relative flex-1 py-3 text-xs font-black uppercase tracking-widest transition-colors duration-200 z-10",
+                                selectedType === 'EXPENSE' ? "text-white" : "text-slate-500 hover:text-slate-700"
+                            )}
                             onClick={() => {
                                 setValue('type', 'EXPENSE', { shouldValidate: true });
                                 setValue('categoryId', '', { shouldValidate: true });
                             }}
                         >
                             Expense
-                        </Button>
-                        <Button
+                        </button>
+                        <button
                             type="button"
-                            variant={selectedType === 'INCOME' ? 'success' : 'outline'}
-                            className={`h-12 rounded-xl font-bold transition-all ${selectedType === 'INCOME' ? 'shadow-lg shadow-emerald-200' : ''}`}
+                            className={cn(
+                                "relative flex-1 py-3 text-xs font-black uppercase tracking-widest transition-colors duration-200 z-10",
+                                selectedType === 'INCOME' ? "text-white" : "text-slate-500 hover:text-slate-700"
+                            )}
                             onClick={() => {
                                 setValue('type', 'INCOME', { shouldValidate: true });
                                 setValue('categoryId', '', { shouldValidate: true });
                             }}
                         >
                             Income
-                        </Button>
+                        </button>
                     </div>
 
                     <div className="space-y-1.5">
