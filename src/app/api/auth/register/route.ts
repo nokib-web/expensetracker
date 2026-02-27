@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { hashPassword } from '@/lib/auth-utils';
-import { RegisterSchema } from '@/lib/validations';
+import { RegisterBodySchema } from '@/lib/validations';
 import { withErrorHandler, ValidationError, ConflictError } from '@/lib/errors';
 import { logAction } from '@/lib/audit';
 import { isRateLimited } from '@/lib/ratelimit';
@@ -18,8 +18,8 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
 
     const body = await request.json();
 
-    // Validate input using the comprehensive RegisterSchema
-    const validationResult = RegisterSchema.safeParse(body);
+    // Validate input using the RegisterBodySchema (doesn't require confirmPassword)
+    const validationResult = RegisterBodySchema.safeParse(body);
     if (!validationResult.success) {
         throw new ValidationError(validationResult.error.issues[0].message);
     }

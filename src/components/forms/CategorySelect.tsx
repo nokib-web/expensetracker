@@ -38,7 +38,7 @@ export function CategorySelect({
     const [newCategoryName, setNewCategoryName] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
 
-    const { data: categories = [], isLoading } = useQuery<Category[]>({
+    const { data: response, isLoading } = useQuery({
         queryKey: ['categories', type],
         queryFn: async () => {
             const response = await fetch(`/api/categories?type=${type}`);
@@ -46,6 +46,8 @@ export function CategorySelect({
             return response.json();
         },
     });
+
+    const categories = response?.data || [];
 
     const addCategoryMutation = useMutation({
         mutationFn: async (name: string) => {
